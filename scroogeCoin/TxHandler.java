@@ -84,20 +84,25 @@ public class TxHandler {
     }
 
     private boolean verifyInputsValuesGreaterThanOrEqualToOutputValues(Transaction tx) {
+        return getInputSum(tx) >= getOutputSum(tx);
+    }
 
+    private double getInputSum(Transaction tx) {
         double inputSum = 0;
         for(Transaction.Input in : tx.getInputs()) {
             UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
             Transaction.Output prevOut = utxoPool.getTxOutput(claimedUTXO);
             inputSum += prevOut.value;
         }
+        return inputSum;
+    }
 
+    private double getOutputSum(Transaction tx) {
         double outputSum = 0;
         for(Transaction.Output out : tx.getOutputs()) {
             outputSum += out.value;
         }
-
-        return inputSum >= outputSum;
+        return outputSum;
     }
 
     /**
