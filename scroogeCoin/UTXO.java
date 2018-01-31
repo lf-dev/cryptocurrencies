@@ -1,5 +1,3 @@
-package scroogeCoin;
-
 import java.util.Arrays;
 
 public class UTXO implements Comparable<UTXO> {
