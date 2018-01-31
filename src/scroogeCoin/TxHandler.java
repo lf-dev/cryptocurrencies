@@ -1,6 +1,13 @@
 package scroogeCoin;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 public class TxHandler {
+
+    private UTXOPool utxoPool;
 
     /**
      * Creates a public ledger whose current UTXOPool (collection of unspent transaction outputs) is
@@ -8,7 +15,7 @@ public class TxHandler {
      * constructor.
      */
     public TxHandler(UTXOPool utxoPool) {
-        // IMPLEMENT THIS
+        this.utxoPool = utxoPool;
     }
 
     /**
@@ -21,7 +28,78 @@ public class TxHandler {
      *     values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
-        // IMPLEMENT THIS
+        return verifyClaimedOutputsInPool(tx) &&
+                verifyInputSignatures(tx) &&
+                verifyNoUTXOClaimedMultipleTimes(tx) &&
+                verifyAllOutputNonNegatives(tx) &&
+                verifyInputsValuesGreaterThanOrEqualToOutputValues(tx);
+    }
+
+    private boolean verifyClaimedOutputsInPool(Transaction tx) {
+
+        for(Transaction.Input in : tx.getInputs()) {
+            UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
+            if(utxoPool.contains(claimedUTXO)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean verifyInputSignatures(Transaction tx) {
+
+        for(int i=0; i<tx.getInputs().size(); i++) {
+
+            Transaction.Input in = tx.getInput(i);
+            UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
+            byte[] message = tx.getRawDataToSign(i);
+            Transaction.Output prevOut = utxoPool.getTxOutput(claimedUTXO);
+
+            if(!Crypto.verifySignature(prevOut.address, message, in.signature)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean verifyNoUTXOClaimedMultipleTimes(Transaction tx) {
+
+        Set<UTXO> claimedUTXOs = new HashSet<>();
+
+        for(Transaction.Input in : tx.getInputs()) {
+            UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
+            claimedUTXOs.add(claimedUTXO);
+        }
+
+        return claimedUTXOs.size() == tx.getInputs().size();
+    }
+
+    private boolean verifyAllOutputNonNegatives(Transaction tx) {
+        for(Transaction.Output out : tx.getOutputs()) {
+            if(out.value < 0){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean verifyInputsValuesGreaterThanOrEqualToOutputValues(Transaction tx) {
+
+        double inputSum = 0;
+        for(Transaction.Input in : tx.getInputs()) {
+            UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
+            Transaction.Output prevOut = utxoPool.getTxOutput(claimedUTXO);
+            inputSum += prevOut.value;
+        }
+
+        double outputSum = 0;
+        for(Transaction.Output out : tx.getOutputs()) {
+            outputSum += out.value;
+        }
+
+        return inputSum >= outputSum;
     }
 
     /**
@@ -30,7 +108,34 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        // IMPLEMENT THIS
+
+        List<Transaction> acceptedTransactions = new ArrayList<>();
+        for(Transaction tx : possibleTxs) {
+
+            if(isValidTx(tx)) {
+                apply(tx);
+            }
+        }
+
+        return (Transaction[])acceptedTransactions.toArray();
+
     }
 
+    private void apply(Transaction tx) {
+
+        tx.finalize();
+
+        for(Transaction.Input in : tx.getInputs()) {
+            UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
+            utxoPool.removeUTXO(claimedUTXO);
+        }
+
+        for(int i=0; i<tx.getOutputs().size(); i++) {
+
+            Transaction.Output out = tx.getOutput(i);
+            UTXO utxo = new UTXO(tx.getHash(), i);
+
+            utxoPool.addUTXO(utxo, out);
+        }
+    }
 }
