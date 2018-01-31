@@ -5,7 +5,7 @@ import java.util.Set;
 
 public class TxHandler {
 
-    private UTXOPool utxoPool;
+    protected UTXOPool utxoPool;
 
     /**
      * Creates a public ledger whose current UTXOPool (collection of unspent transaction outputs) is
@@ -87,7 +87,7 @@ public class TxHandler {
         return getInputSum(tx) >= getOutputSum(tx);
     }
 
-    private double getInputSum(Transaction tx) {
+    protected double getInputSum(Transaction tx) {
         double inputSum = 0;
         for(Transaction.Input in : tx.getInputs()) {
             UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
@@ -97,7 +97,7 @@ public class TxHandler {
         return inputSum;
     }
 
-    private double getOutputSum(Transaction tx) {
+    protected double getOutputSum(Transaction tx) {
         double outputSum = 0;
         for(Transaction.Output out : tx.getOutputs()) {
             outputSum += out.value;
