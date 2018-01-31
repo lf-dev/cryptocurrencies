@@ -37,7 +37,7 @@ public class TxHandler {
 
         for(Transaction.Input in : tx.getInputs()) {
             UTXO claimedUTXO = new UTXO(in.prevTxHash, in.outputIndex);
-            if(utxoPool.contains(claimedUTXO)) {
+            if(!utxoPool.contains(claimedUTXO)) {
                 return false;
             }
         }
@@ -112,10 +112,11 @@ public class TxHandler {
 
             if(isValidTx(tx)) {
                 apply(tx);
+                acceptedTransactions.add(tx);
             }
         }
 
-        return (Transaction[])acceptedTransactions.toArray();
+        return acceptedTransactions.toArray(new Transaction[acceptedTransactions.size()]);
 
     }
 
