@@ -210,24 +210,20 @@ public class MaxFeeTxHandler {
 
     }
 
+    public Transaction[] handleTxs(Transaction[] possibleTxs) {
+        List<Transaction> maxFee = combinatorialHandleTxs(possibleTxs);
+        return maxFee.toArray(new Transaction[maxFee.size()]);
+    }
+
     private double bestFee;
     private List<Transaction> maxFeeTransactions;
 
-    private long maxIterations = 10000;
-    private long iterations = 0;
-
-    public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        return combinatorialHandleTxs(possibleTxs);
-    }
-
-    public Transaction[] combinatorialHandleTxs(Transaction[] possibleTxs) {
+    public List<Transaction> combinatorialHandleTxs(Transaction[] possibleTxs) {
 
         //not working for 30 transctions
 //        if(possibleTxs.length > 10) {
 //            return possibleTxs;
 //        }
-
-        iterations = 0;
 
         //calc hash for all transactions
         for(Transaction tx : possibleTxs) {
@@ -262,16 +258,10 @@ public class MaxFeeTxHandler {
             apply(tx, utxoPool);
         }
 
-        return maxFeeTransactions.toArray(new Transaction[maxFeeTransactions.size()]);
+        return maxFeeTransactions;
     }
 
     public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<byte[]> consumedTransactions) {
-
-        if(iterations > maxIterations) {
-            return;
-        }
-
-        iterations++;
 
         List<Transaction> validTransactions = getValidTransactions(avaiableTransactions, pool);
 
