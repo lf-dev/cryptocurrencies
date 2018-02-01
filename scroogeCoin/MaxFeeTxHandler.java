@@ -1,5 +1,3 @@
-import com.sun.javafx.scene.control.skin.VirtualFlow;
-
 import java.util.*;
 
 public class MaxFeeTxHandler {
@@ -179,11 +177,44 @@ public class MaxFeeTxHandler {
         }
 
         return false;
+    }
+
+    private boolean isClaimedConsumed(Transaction tx, Set<byte[]> consumedTransactions) {
+
+        for(Transaction.Input in : tx.getInputs()) {
+            if(consumedTransactions.contains(in.prevTxHash)){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void removeConsumedTransactions(List<Transaction> avaiable, Set<byte[]> consumedTransactions) {
+
+        List<Transaction> toRemove;
+        do {
+
+            toRemove = new LinkedList<>();
+
+            for (Transaction tx : avaiable) {
+
+                if (isClaimedConsumed(tx, consumedTransactions)) {
+                    consumedTransactions.add(tx.getHash());
+                    toRemove.add(tx);
+                }
+            }
+
+            avaiable.removeAll(toRemove);
+        }while(!toRemove.isEmpty());
 
     }
 
     private double bestFee;
     private List<Transaction> maxFeeTransactions;
+
+    private long maxIterations = 10000;
+    private long iterations = 0;
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
         return combinatorialHandleTxs(possibleTxs);
@@ -192,9 +223,11 @@ public class MaxFeeTxHandler {
     public Transaction[] combinatorialHandleTxs(Transaction[] possibleTxs) {
 
         //not working for 30 transctions
-        if(possibleTxs.length > 10) {
-            return possibleTxs;
-        }
+//        if(possibleTxs.length > 10) {
+//            return possibleTxs;
+//        }
+
+        iterations = 0;
 
         //calc hash for all transactions
         for(Transaction tx : possibleTxs) {
@@ -218,9 +251,12 @@ public class MaxFeeTxHandler {
 
             apply(tx, poolClone);
 
-            combinatorialHandleTxs(avaiableTransactions, currentTransactions, poolClone);
-        }
+            Set<byte[]> consumedTransactions = new HashSet<>();
+            consumedTransactions.add(tx.getHash());
+            removeConsumedTransactions(avaiableTransactions, consumedTransactions);
 
+            combinatorialHandleTxs(avaiableTransactions, currentTransactions, poolClone, consumedTransactions);
+        }
 
         for(Transaction tx : maxFeeTransactions) {
             apply(tx, utxoPool);
@@ -229,7 +265,13 @@ public class MaxFeeTxHandler {
         return maxFeeTransactions.toArray(new Transaction[maxFeeTransactions.size()]);
     }
 
-    public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool) {
+    public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<byte[]> consumedTransactions) {
+
+        if(iterations > maxIterations) {
+            return;
+        }
+
+        iterations++;
 
         List<Transaction> validTransactions = getValidTransactions(avaiableTransactions, pool);
 
@@ -254,7 +296,11 @@ public class MaxFeeTxHandler {
 
             apply(tx, poolClone);
 
-            combinatorialHandleTxs(newAvaiable, newCurrent, poolClone);
+            Set<byte[]> newConsumedTransactions = new HashSet<>(consumedTransactions);
+            newConsumedTransactions.add(tx.getHash());
+            removeConsumedTransactions(newAvaiable, consumedTransactions);
+
+            combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedTransactions);
         }
 
     }
