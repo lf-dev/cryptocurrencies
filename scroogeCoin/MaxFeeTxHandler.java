@@ -225,7 +225,7 @@ public class MaxFeeTxHandler {
     }
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> maxFee = greedyHandleTxs(possibleTxs);
+        List<Transaction> maxFee = combinatorialHandleTxs(possibleTxs);
         return maxFee.toArray(new Transaction[maxFee.size()]);
     }
 
@@ -322,7 +322,7 @@ public class MaxFeeTxHandler {
 
             Set<byte[]> newConsumedTransactions = new HashSet<>(consumedTransactions);
             newConsumedTransactions.add(tx.getHash());
-            removeConsumedTransactions(newAvaiable, consumedTransactions);
+            removeConsumedTransactions(newAvaiable, newConsumedTransactions);
 
             combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedTransactions);
         }
