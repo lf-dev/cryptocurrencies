@@ -115,6 +115,20 @@ public class MaxFeeTxHandler {
         return getInputSum(tx, pool) - getOutputSum(tx);
     }
 
+    private Transaction getMaxFee(List<Transaction> transactions, UTXOPool pool) {
+
+        double maxFee = 0;
+        Transaction bestTransaction = null;
+        for(Transaction tx: transactions) {
+            double fee = getFee(tx, pool);
+            if(fee > maxFee) {
+                bestTransaction = tx;
+            }
+        }
+
+        return bestTransaction;
+    }
+
     private double getFeeTransactions(List<Transaction> transactions, UTXOPool pool) {
 
         UTXOPool clone = new UTXOPool(pool);
@@ -211,8 +225,28 @@ public class MaxFeeTxHandler {
     }
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> maxFee = combinatorialHandleTxs(possibleTxs);
+        List<Transaction> maxFee = greedyHandleTxs(possibleTxs);
         return maxFee.toArray(new Transaction[maxFee.size()]);
+    }
+
+    public List<Transaction> greedyHandleTxs(Transaction[] possibleTxs) {
+
+        List<Transaction> avaiable = new LinkedList<>(Arrays.asList(possibleTxs));
+        List<Transaction> best = new LinkedList<>();
+
+        List<Transaction> valid = getValidTransactions(avaiable, utxoPool);
+        while(!valid.isEmpty()) {
+
+            Transaction bestFeeTx = getMaxFee(valid, utxoPool);
+            best.add(bestFeeTx);
+            avaiable.remove(bestFeeTx);
+
+            apply(bestFeeTx, utxoPool);
+
+            valid = getValidTransactions(avaiable, utxoPool);
+        }
+
+        return best;
     }
 
     private double bestFee;
