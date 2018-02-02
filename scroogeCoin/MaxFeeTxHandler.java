@@ -80,6 +80,19 @@ public class MaxFeeTxHandler {
         return claimedUTXOs;
     }
 
+    private Set<UTXO> getOutputUTXOs(Transaction tx) {
+
+        Set<UTXO> outputUTXOs = new HashSet<>();
+
+        for(int i=0; i<tx.getOutputs().size(); i++) {
+            UTXO utxo = new UTXO(tx.getHash(), i);
+            outputUTXOs.add(utxo);
+        }
+
+        return outputUTXOs;
+
+    }
+
     private boolean verifyAllOutputNonNegatives(Transaction tx) {
         for(Transaction.Output out : tx.getOutputs()) {
             if(out.value < 0){
@@ -175,10 +188,10 @@ public class MaxFeeTxHandler {
         return false;
     }
 
-    private boolean isClaimedConsumed(Transaction tx, Set<byte[]> consumedTransactions) {
+    private boolean isClaimedConsumed(Transaction tx, Set<UTXO> consumedCoins) {
 
-        for(Transaction.Input in : tx.getInputs()) {
-            if(consumedTransactions.contains(in.prevTxHash)){
+        for(UTXO claimed : getClaimedUTXOs(tx)) {
+            if(consumedCoins.contains(claimed)){
                 return true;
             }
         }
@@ -186,7 +199,7 @@ public class MaxFeeTxHandler {
         return false;
     }
 
-    private void removeConsumedTransactions(List<Transaction> avaiable, Set<byte[]> consumedTransactions) {
+    private void removeTransactionWithConsumedCoins(List<Transaction> avaiable, Set<UTXO> consumedCoins) {
 
         List<Transaction> toRemove;
         do {
@@ -195,8 +208,8 @@ public class MaxFeeTxHandler {
 
             for (Transaction tx : avaiable) {
 
-                if (isClaimedConsumed(tx, consumedTransactions)) {
-                    consumedTransactions.add(tx.getHash());
+                if (isClaimedConsumed(tx, consumedCoins)) {
+                    consumedCoins.addAll(getOutputUTXOs(tx));
                     toRemove.add(tx);
                 }
             }
@@ -252,7 +265,7 @@ public class MaxFeeTxHandler {
         maxFeeTransactions = new LinkedList<>();
 
         for(Transaction tx: possibleTxs) {
-            invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<byte[]>(), tx);
+            invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<UTXO>(), tx);
         }
 
         for(Transaction tx : maxFeeTransactions) {
@@ -262,7 +275,7 @@ public class MaxFeeTxHandler {
         return maxFeeTransactions;
     }
 
-    public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<byte[]> consumedTransactions) {
+    public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<UTXO> consumedCoins) {
 
         List<Transaction> validTransactions = getValidTransactions(avaiableTransactions, pool);
 
@@ -276,11 +289,11 @@ public class MaxFeeTxHandler {
         }
 
         for(Transaction tx : validTransactions) {
-            invokeCombinatorial(avaiableTransactions, currentTransactions, pool, consumedTransactions, tx);
+            invokeCombinatorial(avaiableTransactions, currentTransactions, pool, consumedCoins, tx);
         }
     }
 
-    private void invokeCombinatorial(List<Transaction> avaiableTransactions, List<Transaction> currentTransactions, UTXOPool pool, Set<byte[]> consumedTransactions, Transaction tx) {
+    private void invokeCombinatorial(List<Transaction> avaiableTransactions, List<Transaction> currentTransactions, UTXOPool pool, Set<UTXO> consumedCoins, Transaction tx) {
 
         UTXOPool poolClone = new UTXOPool(pool);
 
@@ -292,11 +305,12 @@ public class MaxFeeTxHandler {
 
         apply(tx, poolClone);
 
-        Set<byte[]> newConsumedTransactions = new HashSet<>(consumedTransactions);
-        newConsumedTransactions.add(tx.getHash());
-        removeConsumedTransactions(newAvaiable, newConsumedTransactions);
+        Set<UTXO> newConsumedCoins = new HashSet<>(consumedCoins);
+        newConsumedCoins.addAll(getClaimedUTXOs(tx));
 
-        combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedTransactions);
+        removeTransactionWithConsumedCoins(newAvaiable, newConsumedCoins);
+
+        combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedCoins);
     }
 
     private void apply(Transaction tx, UTXOPool pool) {
