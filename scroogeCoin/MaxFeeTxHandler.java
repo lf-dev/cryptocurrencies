@@ -1,3 +1,4 @@
+import java.net.CookieHandler;
 import java.util.*;
 
 public class MaxFeeTxHandler {
@@ -386,13 +387,19 @@ public class MaxFeeTxHandler {
 
     private List<List<Transaction>> findIndependentTransactions(Transaction[] transactions) {
 
-        QuickFindUF uf = new QuickFindUF(transactions.length);
+        Collection<Transaction> virtualTransactions = createVirtualTransactions();
 
-        for(int i=0; i<transactions.length; i++) {
-            for(int j=0; j<transactions.length; j++) {
+        List<Transaction> possibleTransactions = new LinkedList<>();
+        possibleTransactions.addAll(Arrays.asList(transactions));
+        possibleTransactions.addAll(virtualTransactions);
 
-                Transaction t1 = transactions[i];
-                Transaction t2 = transactions[j];
+        QuickFindUF uf = new QuickFindUF(possibleTransactions.size());
+
+        for(int i=0; i<possibleTransactions.size(); i++) {
+            for(int j=0; j<possibleTransactions.size(); j++) {
+
+                Transaction t1 = possibleTransactions.get(i);
+                Transaction t2 = possibleTransactions.get(j);
 
                 if(isConnected(t1, t2)){
                     uf.union(i, j);
@@ -407,12 +414,61 @@ public class MaxFeeTxHandler {
 
             List<Transaction> subGroupTransactions = new LinkedList<>();
             for(Integer index : indexes) {
-                subGroupTransactions.add(transactions[index]);
+
+                Transaction tx = possibleTransactions.get(index);
+                if(!virtualTransactions.contains(tx)) {
+                    subGroupTransactions.add(possibleTransactions.get(index));
+                }
+
             }
             allTransactions.add(subGroupTransactions);
         }
 
         return allTransactions;
+    }
+
+    /**
+     * Transações que nao foram fornecidas mas pertencem ao utxoPool
+     * Necessaria para encontrar as transações independentes
+     * @return
+     */
+    private Collection<Transaction> createVirtualTransactions() {
+
+        Map<byte[], List<UTXO>> virtualTransactionsUTXOs = new HashMap<>();
+
+        for(UTXO utxo : utxoPool.getAllUTXO()) {
+
+            if(!virtualTransactionsUTXOs.containsKey(utxo.getTxHash())) {
+                virtualTransactionsUTXOs.put(utxo.getTxHash(), new LinkedList<UTXO>());
+            }
+
+            virtualTransactionsUTXOs.get(utxo.getTxHash()).add(utxo);
+        }
+
+        //é importante que os Outputs sejam inseridos na ordem correta dentro da transação
+        List<Transaction> virtualTransactions = new LinkedList<>();
+        for(Map.Entry<byte[], List<UTXO>> e : virtualTransactionsUTXOs.entrySet()){
+
+            Transaction t = new Transaction();
+            t.setHash(e.getKey());
+
+            List<UTXO> utxos = e.getValue();
+            utxos.sort(new Comparator<UTXO>() {
+                @Override
+                public int compare(UTXO utxo1, UTXO utxo2) {
+                    return Integer.compare(utxo1.getIndex(), utxo2.getIndex());
+                }
+            });
+
+            for(UTXO utxo : utxos) {
+                t.getOutputs().add(utxoPool.getTxOutput(utxo));
+            }
+
+            virtualTransactions.add(t);
+
+        }
+
+        return virtualTransactions;
     }
 
     private boolean isConnected(Transaction t1, Transaction t2) {
