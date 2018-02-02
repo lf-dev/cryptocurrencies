@@ -77,9 +77,9 @@ public class Main {
         tx3.signTx(pk_alice.getPrivate(), 0);
 
         Tx tx4 = new Tx();
-        tx3.addInput(tx.getHash(), 1);
-        tx3.addOutput(2, pk_alice.getPublic());
-        tx3.signTx(pk_scrooge.getPrivate(), 0);
+        tx4.addInput(tx.getHash(), 1);
+        tx4.addOutput(2, pk_alice.getPublic());
+        tx4.signTx(pk_scrooge.getPrivate(), 0);
 
         //tx -> tx2 -> tx3
         //tx -> tx4
@@ -94,6 +94,7 @@ public class Main {
         Transaction[] txs = new Transaction[]{tx2, tx3, tx4};
         Transaction[] processed = txHandler.handleTxs(txs);
 
+        System.out.println("---------------");
         for(Transaction t : processed) {
             System.out.println(t);
         }
