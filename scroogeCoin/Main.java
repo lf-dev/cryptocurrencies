@@ -32,6 +32,7 @@ public class Main {
          */
         Tx tx = new Tx();
         tx.addOutput(10, pk_scrooge.getPublic());
+        tx.addOutput(2, pk_scrooge.getPublic());
 
         // This value has no meaning, but tx.getRawDataToSign(0) will access it in prevTxHash;
         byte[] initialHash = BigInteger.valueOf(0).toByteArray();
@@ -67,16 +68,39 @@ public class Main {
         // There is only one (at position 0) Transaction.Input in tx2
         // and it contains the coin from Scrooge, therefore I have to sign with the private key from Scrooge
         tx2.signTx(pk_scrooge.getPrivate(), 0);
-        
+
+
+        //Alice transfere 5 dela para ela mesma
+        Tx tx3 = new Tx();
+        tx3.addInput(tx2.getHash(), 0);
+        tx3.addOutput(5, pk_alice.getPublic());
+        tx3.signTx(pk_alice.getPrivate(), 0);
+
+        Tx tx4 = new Tx();
+        tx3.addInput(tx.getHash(), 1);
+        tx3.addOutput(2, pk_alice.getPublic());
+        tx3.signTx(pk_scrooge.getPrivate(), 0);
+
+        //tx -> tx2 -> tx3
+        //tx -> tx4
+
         /*
          * Start the test
          */
         // Remember that the utxoPool contains a single unspent Transaction.Output which is
         // the coin from Scrooge.
         MaxFeeTxHandler txHandler = new MaxFeeTxHandler(utxoPool);
-        System.out.println("txHandler.isValidTx(tx2) returns: " + txHandler.isValidTx(tx2));
-        System.out.println("txHandler.handleTxs(new Transaction[]{tx2}) returns: " +
-                txHandler.handleTxs(new Transaction[]{tx2}).length + " transaction(s)");
+
+        Transaction[] txs = new Transaction[]{tx2, tx3, tx4};
+        Transaction[] processed = txHandler.handleTxs(txs);
+
+        for(Transaction t : processed) {
+            System.out.println(t);
+        }
+
+//        System.out.println("txHandler.isValidTx(tx2) returns: " + txHandler.isValidTx(tx2));
+//        System.out.println("txHandler.handleTxs(new Transaction[]{tx2}) returns: " +
+//                txHandler.handleTxs(new Transaction[]{tx2}).length + " transaction(s)");
     }
 
 
