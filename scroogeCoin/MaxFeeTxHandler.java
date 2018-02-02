@@ -1,9 +1,9 @@
-import javax.xml.crypto.dsig.TransformService;
 import java.util.*;
 
 public class MaxFeeTxHandler {
 
     protected UTXOPool utxoPool;
+    protected UTXOPool originalUtxoPool;
 
     /**
      * Creates a public ledger whose current UTXOPool (collection of unspent transaction outputs) is
@@ -11,7 +11,9 @@ public class MaxFeeTxHandler {
      * constructor.
      */
     public MaxFeeTxHandler(UTXOPool utxoPool) {
+
         this.utxoPool = utxoPool;
+        this.originalUtxoPool = new UTXOPool(utxoPool);
     }
 
     private boolean isValidTx(Transaction tx, UTXOPool pool) {
@@ -229,7 +231,7 @@ public class MaxFeeTxHandler {
 
     private HashMap<Transaction, Double> generateFeeTable(List<Transaction> transactions) {
 
-        UTXOPool pool = new UTXOPool(utxoPool);
+        UTXOPool pool = new UTXOPool(originalUtxoPool);
         for(Transaction tx : transactions) {
             for(int i=0; i<tx.getOutputs().size(); i++) {
                 Transaction.Output out = tx.getOutput(i);
@@ -271,6 +273,19 @@ public class MaxFeeTxHandler {
         return best;
     }
 
+    public List<Transaction> combinatorialHandleTxs(Transaction[] possibleTxs) {
+
+        List<List<Transaction>> independentGroups = findIndependentTransactions(possibleTxs);
+        List<Transaction> allProcessedTransanctions = new LinkedList<>();
+
+        for(List<Transaction> subGroup : independentGroups) {
+            List<Transaction> processedTransactions = combinatorialHandleTxs(subGroup);
+            allProcessedTransanctions.addAll(processedTransactions);
+        }
+
+        return allProcessedTransanctions;
+    }
+
     private double bestFee;
     private List<Transaction> maxFeeTransactions;
     private HashMap<Transaction, Double> feeTable;
@@ -278,12 +293,7 @@ public class MaxFeeTxHandler {
     private int maxIterations = 10000;
     private int numIterations = 0;
 
-    public List<Transaction> combinatorialHandleTxs(Transaction[] possibleTxs) {
-
-        //not working for 30 transctions
-//        if(possibleTxs.length > 10) {
-//            return possibleTxs;
-//        }
+    public List<Transaction> combinatorialHandleTxs(List<Transaction> possibleTxs) {
 
         numIterations = 0;
 
@@ -292,7 +302,7 @@ public class MaxFeeTxHandler {
             tx.finalize();
         }
 
-        List<Transaction> validTransactions = removeNegativeOutputTransactions(Arrays.asList(possibleTxs));
+        List<Transaction> validTransactions = removeNegativeOutputTransactions(possibleTxs);
 
         feeTable = generateFeeTable(validTransactions);
         bestFee = 0;
@@ -373,6 +383,118 @@ public class MaxFeeTxHandler {
             pool.addUTXO(utxo, out);
         }
     }
+
+    private List<List<Transaction>> findIndependentTransactions(Transaction[] transactions) {
+
+        QuickFindUF uf = new QuickFindUF(transactions.length);
+
+        for(int i=0; i<transactions.length; i++) {
+            for(int j=0; j<transactions.length; j++) {
+
+                Transaction t1 = transactions[i];
+                Transaction t2 = transactions[j];
+
+                if(isConnected(t1, t2)){
+                    uf.union(i, j);
+                }
+            }
+        }
+
+        List<List<Integer>> allIndexes = uf.getComponents();
+        List<List<Transaction>> allTransactions = new LinkedList<>();
+
+        for(List<Integer> indexes : allIndexes) {
+
+            List<Transaction> subGroupTransactions = new LinkedList<>();
+            for(Integer index : indexes) {
+                subGroupTransactions.add(transactions[index]);
+            }
+            allTransactions.add(subGroupTransactions);
+        }
+
+        return allTransactions;
+    }
+
+    private boolean isConnected(Transaction t1, Transaction t2) {
+
+        Set<UTXO> output = getOutputUTXOs(t1);
+        Set<UTXO> input = getClaimedUTXOs(t2);
+
+        return hasIntersection(output, input);
+    }
+
+    /**
+     * QuickFindUF from https://algs4.cs.princeton.edu/15uf/QuickFindUF.java.html
+     */
+    private class QuickFindUF {
+        private int[] id;    // id[i] = component identifier of i
+        private int count;   // number of components
+
+        public QuickFindUF(int n) {
+            count = n;
+            id = new int[n];
+            for (int i = 0; i < n; i++)
+                id[i] = i;
+        }
+
+        public List<List<Integer>> getComponents() {
+
+            List<List<Integer>> allComponentes = new LinkedList<>();
+
+            for(int i=0; i<id.length; i++) {
+
+                List<Integer> components = new LinkedList<>();
+                for(int j=0; j<id.length; j++) {
+                    if(id[j] == i) {
+                        components.add(j);
+                    }
+                }
+
+                if(!components.isEmpty()){
+                    allComponentes.add(components);
+                }
+            }
+
+            return allComponentes;
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public int find(int p) {
+            validate(p);
+            return id[p];
+        }
+
+        private void validate(int p) {
+            int n = id.length;
+            if (p < 0 || p >= n) {
+                throw new IllegalArgumentException("index " + p + " is not between 0 and " + (n-1));
+            }
+        }
+
+        public boolean connected(int p, int q) {
+            validate(p);
+            validate(q);
+            return id[p] == id[q];
+        }
+
+        public void union(int p, int q) {
+            validate(p);
+            validate(q);
+            int pID = id[p];   // needed for correctness
+            int qID = id[q];   // to reduce the number of array accesses
+
+            // p and q are already in the same component
+            if (pID == qID) return;
+
+            for (int i = 0; i < id.length; i++)
+                if (id[i] == pID) id[i] = qID;
+            count--;
+        }
+    }
+
 
 
 }
