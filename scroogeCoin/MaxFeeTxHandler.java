@@ -164,24 +164,6 @@ public class MaxFeeTxHandler {
         return positiveOutputs;
     }
 
-    private List<Transaction> removeConflitantInputs(Transaction transaction, List<Transaction> avaiableTransactions) {
-
-        Set<UTXO> transactionsClains = getClaimedUTXOs(transaction);
-
-        List<Transaction> noInputConflict = new LinkedList<>();
-
-        for(Transaction tx : avaiableTransactions) {
-
-            Set<UTXO> avaiableClains = getClaimedUTXOs(transaction);
-
-            if(!hasIntersection(transactionsClains, avaiableClains)) {
-                noInputConflict.add(tx);
-            }
-        }
-
-        return noInputConflict;
-    }
-
     private <T> boolean hasIntersection(Set<T> s1, Set<T> s2) {
 
         for(T t : s1) {
