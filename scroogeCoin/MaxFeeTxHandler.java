@@ -225,7 +225,7 @@ public class MaxFeeTxHandler {
     }
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> maxFee = combinatorialHandleTxs(possibleTxs);
+        List<Transaction> maxFee = greedyHandleTxs(possibleTxs);
         return maxFee.toArray(new Transaction[maxFee.size()]);
     }
 
@@ -270,22 +270,7 @@ public class MaxFeeTxHandler {
         maxFeeTransactions = new LinkedList<>();
 
         for(Transaction tx: possibleTxs) {
-
-            UTXOPool poolClone = new UTXOPool(utxoPool);
-
-            List<Transaction> avaiableTransactions = new LinkedList<>(validTransactions);
-            avaiableTransactions.remove(tx);
-
-            List<Transaction> currentTransactions = new LinkedList<>();
-            currentTransactions.add(tx);
-
-            apply(tx, poolClone);
-
-            Set<byte[]> consumedTransactions = new HashSet<>();
-            consumedTransactions.add(tx.getHash());
-            removeConsumedTransactions(avaiableTransactions, consumedTransactions);
-
-            combinatorialHandleTxs(avaiableTransactions, currentTransactions, poolClone, consumedTransactions);
+            invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<byte[]>(), tx);
         }
 
         for(Transaction tx : maxFeeTransactions) {
@@ -309,24 +294,27 @@ public class MaxFeeTxHandler {
         }
 
         for(Transaction tx : validTransactions) {
-
-            UTXOPool poolClone = new UTXOPool(pool);
-
-            List<Transaction> newAvaiable = new LinkedList<>(avaiableTransactions);
-            newAvaiable.remove(tx);
-
-            List<Transaction> newCurrent = new LinkedList<>(currentTransactions);
-            newCurrent.add(tx);
-
-            apply(tx, poolClone);
-
-            Set<byte[]> newConsumedTransactions = new HashSet<>(consumedTransactions);
-            newConsumedTransactions.add(tx.getHash());
-            removeConsumedTransactions(newAvaiable, newConsumedTransactions);
-
-            combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedTransactions);
+            invokeCombinatorial(avaiableTransactions, currentTransactions, pool, consumedTransactions, tx);
         }
+    }
 
+    private void invokeCombinatorial(List<Transaction> avaiableTransactions, List<Transaction> currentTransactions, UTXOPool pool, Set<byte[]> consumedTransactions, Transaction tx) {
+
+        UTXOPool poolClone = new UTXOPool(pool);
+
+        List<Transaction> newAvaiable = new LinkedList<>(avaiableTransactions);
+        newAvaiable.remove(tx);
+
+        List<Transaction> newCurrent = new LinkedList<>(currentTransactions);
+        newCurrent.add(tx);
+
+        apply(tx, poolClone);
+
+        Set<byte[]> newConsumedTransactions = new HashSet<>(consumedTransactions);
+        newConsumedTransactions.add(tx.getHash());
+        removeConsumedTransactions(newAvaiable, newConsumedTransactions);
+
+        combinatorialHandleTxs(newAvaiable, newCurrent, poolClone, newConsumedTransactions);
     }
 
     private void apply(Transaction tx, UTXOPool pool) {
