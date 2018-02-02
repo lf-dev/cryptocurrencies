@@ -164,6 +164,17 @@ public class MaxFeeTxHandler {
         return valid;
     }
 
+    public void sortTransactions(List<Transaction> transactions, HashMap<Transaction, Double> feeTable) {
+
+        Collections.sort(transactions, new Comparator<Transaction>() {
+            public int compare(Transaction t1, Transaction t2) {
+                Double t1Fee = feeTable.get(t1);
+                Double t2Fee = feeTable.get(t2);
+                return t2Fee.compareTo(t1Fee);
+            }
+        });
+    }
+
     public List<Transaction> removeNegativeOutputTransactions(List<Transaction> transactions) {
 
         List<Transaction> positiveOutputs = new LinkedList<>();
@@ -264,12 +275,17 @@ public class MaxFeeTxHandler {
     private List<Transaction> maxFeeTransactions;
     private HashMap<Transaction, Double> feeTable;
 
+    private int maxIterations = 10000;
+    private int numIterations = 0;
+
     public List<Transaction> combinatorialHandleTxs(Transaction[] possibleTxs) {
 
         //not working for 30 transctions
 //        if(possibleTxs.length > 10) {
 //            return possibleTxs;
 //        }
+
+        numIterations = 0;
 
         //calc hash for all transactions
         for(Transaction tx : possibleTxs) {
@@ -282,6 +298,7 @@ public class MaxFeeTxHandler {
         bestFee = 0;
         maxFeeTransactions = new LinkedList<>();
 
+        sortTransactions(validTransactions, feeTable);
         for(Transaction tx: possibleTxs) {
             invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<UTXO>(), tx);
         }
@@ -294,6 +311,11 @@ public class MaxFeeTxHandler {
     }
 
     public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<UTXO> consumedCoins) {
+
+        numIterations++;
+        if(numIterations > maxIterations) {
+            return;
+        }
 
         List<Transaction> validTransactions = getValidTransactions(avaiableTransactions, pool);
 
