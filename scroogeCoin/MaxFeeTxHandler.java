@@ -284,7 +284,15 @@ public class MaxFeeTxHandler {
             allProcessedTransanctions.addAll(processedTransactions);
         }
 
-        return allProcessedTransanctions;
+        List<Transaction> validatedProcessedTransactions = new LinkedList<>();
+        for(Transaction tx : allProcessedTransanctions) {
+            if(isValidTx(tx, utxoPool)){
+                apply(tx, utxoPool);
+                validatedProcessedTransactions.add(tx);
+            }
+        }
+
+        return validatedProcessedTransactions;
     }
 
     private double bestFee;
@@ -314,19 +322,15 @@ public class MaxFeeTxHandler {
             invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<UTXO>(), tx);
         }
 
-        for(Transaction tx : maxFeeTransactions) {
-            apply(tx, utxoPool);
-        }
-
         return maxFeeTransactions;
     }
 
     public void combinatorialHandleTxs(List<Transaction> avaiableTransactions, List<Transaction>  currentTransactions, UTXOPool pool, Set<UTXO> consumedCoins) {
 
-        numIterations++;
-        if(numIterations > maxIterations) {
-            return;
-        }
+//        numIterations++;
+//        if(numIterations > maxIterations) {
+//            return;
+//        }
 
         List<Transaction> validTransactions = getValidTransactions(avaiableTransactions, pool);
 
@@ -405,18 +409,18 @@ public class MaxFeeTxHandler {
         }
 
         List<List<Integer>> allIndexes = uf.getComponents();
-        List<List<Transaction>> allTransactions = new LinkedList<>();
+        List<List<Transaction>> allGroups = new LinkedList<>();
 
         for(List<Integer> indexes : allIndexes) {
 
-            List<Transaction> subGroupTransactions = new LinkedList<>();
+            List<Transaction> group = new LinkedList<>();
             for(Integer index : indexes) {
-                subGroupTransactions.add(possibleTransactions.get(index));
+                group.add(possibleTransactions.get(index));
             }
-            allTransactions.add(subGroupTransactions);
+            allGroups.add(group);
         }
 
-        return allTransactions;
+        return allGroups;
     }
 
     private boolean isConnected(Transaction t1, Transaction t2) {
@@ -446,12 +450,12 @@ public class MaxFeeTxHandler {
 
             List<List<Integer>> allComponentes = new LinkedList<>();
 
-            for(int i=0; i<id.length; i++) {
+            for(int groupId=0; groupId<id.length; groupId++) {
 
                 List<Integer> components = new LinkedList<>();
-                for(int j=0; j<id.length; j++) {
-                    if(id[j] == i) {
-                        components.add(j);
+                for(int index=0; index<id.length; index++) {
+                    if(id[index] == groupId) {
+                        components.add(index);
                     }
                 }
 
