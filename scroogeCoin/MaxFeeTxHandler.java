@@ -1,4 +1,3 @@
-import java.net.CookieHandler;
 import java.util.*;
 
 public class MaxFeeTxHandler {
@@ -189,6 +188,17 @@ public class MaxFeeTxHandler {
         return positiveOutputs;
     }
 
+    public List<Transaction> removeMultipleClaimToSameOutputTransactions(List<Transaction> transactions) {
+
+        List<Transaction> valid = new LinkedList<>();
+        for(Transaction tx: transactions) {
+            if(!verifyNoUTXOClaimedMultipleTimes(tx)){
+                valid.add(tx);
+            }
+        }
+        return valid;
+    }
+
     private <T> boolean hasIntersection(Set<T> s1, Set<T> s2) {
 
         for(T t : s1) {
@@ -250,13 +260,13 @@ public class MaxFeeTxHandler {
     }
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> maxFee = combinatorialHandleTxs(possibleTxs);
+
+        List<Transaction> avaiable = new LinkedList<>(Arrays.asList(possibleTxs));
+        List<Transaction> maxFee = combinatorialIndependentGroupsHandleTxs(avaiable);
         return maxFee.toArray(new Transaction[maxFee.size()]);
     }
 
-    public List<Transaction> greedyHandleTxs(Transaction[] possibleTxs) {
-
-        List<Transaction> avaiable = new LinkedList<>(Arrays.asList(possibleTxs));
+    public List<Transaction> greedyHandleTxs(List<Transaction> avaiable) {
         List<Transaction> best = new LinkedList<>();
 
         List<Transaction> valid = getValidTransactions(avaiable, utxoPool);
@@ -274,9 +284,12 @@ public class MaxFeeTxHandler {
         return best;
     }
 
-    public List<Transaction> combinatorialHandleTxs(Transaction[] possibleTxs) {
+    public List<Transaction> combinatorialIndependentGroupsHandleTxs(List<Transaction> avaiable) {
 
-        List<List<Transaction>> independentGroups = findIndependentTransactions(possibleTxs);
+//        List<Transaction> validTransactions = removeNegativeOutputTransactions(avaiable);
+//        validTransactions = removeMultipleClaimToSameOutputTransactions(validTransactions);
+
+        List<List<Transaction>> independentGroups = findIndependentTransactions(avaiable);
         List<Transaction> allProcessedTransanctions = new LinkedList<>();
 
         for(List<Transaction> subGroup : independentGroups) {
@@ -286,6 +299,13 @@ public class MaxFeeTxHandler {
 
         List<Transaction> validatedProcessedTransactions = new LinkedList<>();
         for(Transaction tx : allProcessedTransanctions) {
+            if(isValidTx(tx, utxoPool)){
+                apply(tx, utxoPool);
+                validatedProcessedTransactions.add(tx);
+            }
+        }
+
+        for(Transaction tx : avaiable) {
             if(isValidTx(tx, utxoPool)){
                 apply(tx, utxoPool);
                 validatedProcessedTransactions.add(tx);
@@ -311,15 +331,13 @@ public class MaxFeeTxHandler {
             tx.finalize();
         }
 
-        List<Transaction> validTransactions = removeNegativeOutputTransactions(possibleTxs);
-
-        feeTable = generateFeeTable(validTransactions);
+        feeTable = generateFeeTable(possibleTxs);
         bestFee = 0;
         maxFeeTransactions = new LinkedList<>();
 
-        sortTransactions(validTransactions, feeTable);
+        sortTransactions(possibleTxs, feeTable);
         for(Transaction tx: possibleTxs) {
-            invokeCombinatorial(validTransactions, new LinkedList<>(), utxoPool, new HashSet<UTXO>(), tx);
+            invokeCombinatorial(possibleTxs, new LinkedList<>(), new UTXOPool(utxoPool), new HashSet<UTXO>(), tx);
         }
 
         return maxFeeTransactions;
@@ -389,18 +407,15 @@ public class MaxFeeTxHandler {
         }
     }
 
-    private List<List<Transaction>> findIndependentTransactions(Transaction[] transactions) {
+    private List<List<Transaction>> findIndependentTransactions(List<Transaction> avaiable) {
 
-        List<Transaction> possibleTransactions = new LinkedList<>();
-        possibleTransactions.addAll(Arrays.asList(transactions));
+        QuickFindUF uf = new QuickFindUF(avaiable.size());
 
-        QuickFindUF uf = new QuickFindUF(possibleTransactions.size());
+        for(int i=0; i<avaiable.size(); i++) {
+            for(int j=0; j<avaiable.size(); j++) {
 
-        for(int i=0; i<possibleTransactions.size(); i++) {
-            for(int j=0; j<possibleTransactions.size(); j++) {
-
-                Transaction t1 = possibleTransactions.get(i);
-                Transaction t2 = possibleTransactions.get(j);
+                Transaction t1 = avaiable.get(i);
+                Transaction t2 = avaiable.get(j);
 
                 if(isConnected(t1, t2)){
                     uf.union(i, j);
@@ -415,7 +430,7 @@ public class MaxFeeTxHandler {
 
             List<Transaction> group = new LinkedList<>();
             for(Integer index : indexes) {
-                group.add(possibleTransactions.get(index));
+                group.add(avaiable.get(index));
             }
             allGroups.add(group);
         }
